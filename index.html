@@ -82,7 +82,8 @@
   .sbtn .soon { font-size:11px; font-weight:400; }
   .field { margin-bottom:14px; }
   .field label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
-  .field input[type=date] { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
+  .bd-selects { display:flex; gap:8px; }
+  .bd-selects select { flex:1; min-width:0; padding:10px 8px; border:1px solid var(--line); border-radius:8px; font-size:14px; background:var(--card); color:inherit; }
   .gender-opts { display:flex; gap:8px; }
   .gopt { flex:1; text-align:center; padding:10px 0; border:1px solid var(--line); border-radius:8px; cursor:pointer; font-size:14px; }
   .gopt.on { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
@@ -170,7 +171,11 @@
   </div>
   <div class="field">
     <label>생년월일</label>
-    <input type="date" id="birthDate" min="1900-01-01">
+    <div class="bd-selects">
+      <select id="bdYear"><option value="">연도</option></select>
+      <select id="bdMonth"><option value="">월</option></select>
+      <select id="bdDay"><option value="">일</option></select>
+    </div>
   </div>
   <div class="consent">
     <input type="checkbox" id="consentChk">
@@ -266,6 +271,22 @@ function pickGender(el){
   pickedGender = el.dataset.v;
   document.querySelectorAll('#genderOpts .gopt').forEach(g => g.classList.toggle('on', g === el));
 }
+function initBirthSelects(){
+  const y = $('bdYear'), m = $('bdMonth');
+  for (let i = new Date().getFullYear(); i >= 1900; i--) y.add(new Option(i + '년', i));
+  for (let i = 1; i <= 12; i++) m.add(new Option(i + '월', i));
+  y.onchange = m.onchange = fillBirthDays;
+  fillBirthDays();
+}
+function fillBirthDays(){
+  const d = $('bdDay'), prev = d.value;
+  const y = +$('bdYear').value, m = +$('bdMonth').value;
+  const last = (y && m) ? new Date(y, m, 0).getDate() : 31;  // 연·월 미선택 시 31일까지
+  d.length = 1;
+  for (let i = 1; i <= last; i++) d.add(new Option(i + '일', i));
+  if (prev && +prev <= last) d.value = prev;
+}
+initBirthSelects();
 async function checkProfile(){
   if (!sb || !currentUser) return;
   const { data } = await sb.from('profiles').select('gender,birth_date').eq('id', currentUser.id).maybeSingle();
@@ -273,9 +294,10 @@ async function checkProfile(){
 }
 async function saveProfile(){
   if (!sb || !currentUser) return;
-  const bd = $('birthDate').value;
+  const y = $('bdYear').value, m = $('bdMonth').value, dy = $('bdDay').value;
   if (!pickedGender){ toast('성별을 선택해주세요'); return; }
-  if (!bd){ toast('생년월일을 입력해주세요'); return; }
+  if (!y || !m || !dy){ toast('생년월일을 선택해주세요'); return; }
+  const bd = y + '-' + String(m).padStart(2, '0') + '-' + String(dy).padStart(2, '0');
   if (!$('consentChk').checked){ toast('수집·이용 동의가 필요합니다'); return; }
   const { error } = await sb.from('profiles')
     .update({ gender: pickedGender, birth_date: bd, updated_at: new Date().toISOString() })
