@@ -1,0 +1,88 @@
+name: deploy
+
+# 이 레포는 정적 사이트 배포 전용이다. 데이터 수집·커밋은 workstation cron이 수행해
+# push하고, 이 워크플로는 push를 받아 Pages 배포만 한다. schedule은 Supabase keep-alive 전용.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 21 * * *"        # 매일 KST 06:00 (UTC 21:00) — keep-alive 전용
+  workflow_dispatch:             # Actions 탭에서 수동 실행 가능
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # 무료 티어는 1주일간 요청이 없으면 프로젝트가 자동 정지된다.
+  # workstation이 꺼져 있는 날에도 활성 상태를 유지하도록 Actions cron으로 매일 실행한다.
+  keep-alive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase keep-alive
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::warning::Supabase Secrets 미설정 — keep-alive 건너뜀. 1주일 무활동 시 프로젝트가 정지됩니다."
+            exit 0
+          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/activity_logs?select=id&limit=1")
+          if [ "${code}" = "200" ]; then
+            echo "Supabase 응답 정상 (HTTP 200) — 프로젝트 활성 유지"
+          else
+            echo "::warning::Supabase keep-alive 실패 (HTTP ${code}). 이미 정지됐거나 URL/키가 잘못됐을 수 있습니다."
+          fi
+
+  build:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # config.js는 레포에 커밋하지 않고 배포 직전에 Secrets로 생성한다.
+      # 이 파일이 없으면 사이트의 로그인·캘린더 저장·트래킹이 전부 비활성 상태가 된다.
+      - name: 프론트 설정(config.js) 생성
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::warning::SUPABASE_URL/SUPABASE_ANON_KEY 미설정 — config.js 없이 배포됩니다(로그인·저장·트래킹 비활성)."
+            exit 0
+          fi
+          {
+            echo "// GitHub Actions가 Secrets로 생성한다. 직접 수정하지 말 것."
+            echo "window.CALINDER_CONFIG = {"
+            echo "  SUPABASE_URL: \"${SUPABASE_URL}\","
+            echo "  SUPABASE_ANON_KEY: \"${SUPABASE_ANON_KEY}\","
+            echo "};"
+          } > config.js
+          echo "config.js 생성 완료"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+  deploy:
+    if: github.event_name != 'schedule'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

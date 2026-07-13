@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>개인정보처리방침 — 캘인더</title>
+  <style>
+    :root {
+      --accent: #2E5AAC;
+      --bg: #f7f8fb;
+      --card: #fff;
+      --line: #e5e8ef;
+      --txt: #1c2333;
+      --sub: #6b7385;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--txt);
+    }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 14px 20px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+    }
+
+    header h1 {
+      font-size: 22px;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    header a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    header .tag {
+      font-size: 13px;
+      color: var(--sub);
+    }
+
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    .doc {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px 26px;
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .doc h2 {
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .doc .date {
+      font-size: 12px;
+      color: var(--sub);
+      margin-bottom: 18px;
+    }
+
+    .doc h3 {
+      font-size: 15px;
+      margin: 22px 0 8px;
+      color: var(--accent);
+    }
+
+    .doc p,
+    .doc li {
+      color: var(--txt);
+    }
+
+    .doc ul,
+    .doc ol {
+      padding-left: 20px;
+    }
+
+    .doc table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+
+    .doc th,
+    .doc td {
+      border: 1px solid var(--line);
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .doc th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+
+    .doc .note {
+      font-size: 12px;
+      color: var(--sub);
+    }
+
+    footer {
+      text-align: center;
+      color: var(--sub);
+      font-size: 12px;
+      padding: 24px;
+    }
+
+    footer a {
+      color: var(--sub);
+    }
+  </style>
+</head>
+
+<body>
+  <header><a href="./index.html">
+      <h1>캘인더</h1>
+    </a><span class="tag">개인정보처리방침</span></header>
+  <div class="wrap">
+    <div class="doc">
+
+      <h2>개인정보처리방침</h2>
+      <div class="date">시행일: 2026-07-12 · 버전 v0.1</div>
+
+      <p>캘인더(이하 "서비스")는 「개인정보 보호법」에 따라 이용자의 개인정보를 보호하고
+        관련 고충을 신속히 처리하기 위해 다음과 같이 개인정보처리방침을 수립·공개합니다.</p>
+
+      <h3>1. 수집하는 개인정보 항목 및 방법</h3>
+      <table>
+        <tr>
+          <th>구분</th>
+          <th>항목</th>
+          <th>수집 시점·방법</th>
+        </tr>
+        <tr>
+          <td>필수 (소셜 로그인)</td>
+          <td>이메일, 닉네임, 소셜 계정 식별자 (Google·카카오)</td>
+          <td>회원가입 시 소셜 로그인 제공사로부터 수신</td>
+        </tr>
+        <tr>
+          <td>선택 (프로필)</td>
+          <td>성별, 생년월일</td>
+          <td>가입 후 프로필 입력 시 (별도 동의)</td>
+        </tr>
+        <tr>
+          <td>자동 수집</td>
+          <td>서비스 이용기록(행사 조회·클릭·공유·캘린더 저장), 비회원 식별자(anon_id), 접속 일시</td>
+          <td>서비스 이용 과정에서 자동 생성</td>
+        </tr>
+      </table>
+      <p class="note">서비스는 쿠키 대신 브라우저 localStorage에 무작위 생성된 비회원 식별자(anon_id)를 저장하며,
+        기기·브라우저 단위 이용 통계 목적으로만 사용합니다. 브라우저 데이터 삭제로 언제든 제거할 수 있습니다.</p>
+
+      <h3>2. 개인정보의 처리 목적</h3>
+      <ol>
+        <li>회원 식별 및 로그인 상태 유지</li>
+        <li>개인 캘린더 저장 등 회원제 기능 제공</li>
+        <li>성별·연령대별 이용 통계 분석 및 맞춤 행사 추천 (개인 단위로 외부에 공개하지 않음)</li>
+        <li>서비스 개선을 위한 이용 행태 분석</li>
+      </ol>
+
+      <h3>3. 보유 및 이용 기간</h3>
+      <ul>
+        <li>회원 정보(이메일·닉네임·성별·생년월일): 회원 탈퇴 시까지. 탈퇴 시 지체 없이 파기</li>
+        <li>활동 로그: 수집일로부터 [ 3년 ] 후 파기 또는 개인 식별이 불가능한 통계 형태로 변환</li>
+        <li>관계 법령에 따라 보존이 필요한 경우 해당 법령이 정한 기간 동안 보관</li>
+      </ul>
+
+      <h3>4. 개인정보의 제3자 제공</h3>
+      <p>서비스는 이용자의 개인정보를 제3자에게 제공하지 않습니다.
+        다만 법령에 근거한 수사기관 등의 적법한 요청이 있는 경우는 예외로 합니다.</p>
+
+      <h3>5. 개인정보 처리의 위탁 및 국외 이전</h3>
+      <table>
+        <tr>
+          <th>수탁자</th>
+          <th>위탁 업무</th>
+          <th>이전 국가·보관 위치</th>
+        </tr>
+        <tr>
+          <td>Supabase, Inc.</td>
+          <td>회원 데이터베이스·인증 시스템 운영</td>
+          <td>DB 서버: 대한민국(서울) / 운영 법인: 미국</td>
+        </tr>
+        <tr>
+          <td>GitHub, Inc.</td>
+          <td>웹사이트 호스팅 (개인정보 미저장)</td>
+          <td>미국</td>
+        </tr>
+      </table>
+      <p class="note">소셜 로그인 이용 시 Google LLC, (주)카카오의 개인정보처리방침이 함께 적용됩니다.</p>
+
+      <h3>6. 파기 절차 및 방법</h3>
+      <ul>
+        <li>전자 파일: 복구 불가능한 방법으로 영구 삭제</li>
+        <li>탈퇴 요청 시 회원 DB에서 즉시 삭제하며, 활동 로그의 회원 연결 정보는 분리(익명화) 처리</li>
+      </ul>
+
+      <h3>7. 정보주체의 권리와 행사 방법</h3>
+      <p>이용자는 언제든지 개인정보 열람·정정·삭제·처리정지를 요구할 수 있습니다.
+        아래 보호책임자 연락처로 요청하면 지체 없이 조치합니다.
+        선택 항목(성별·생년월일)의 동의 철회는 이메일 요청으로 가능합니다.</p>
+
+      <h3>8. 안전성 확보 조치</h3>
+      <ul>
+        <li>전 구간 HTTPS 암호화 전송</li>
+        <li>데이터베이스 접근 통제(행 수준 보안 정책 — 본인 데이터 외 접근 차단)</li>
+        <li>접근 권한 최소화 및 관리자 인증 키 분리 보관</li>
+      </ul>
+
+      <h3>9. 개인정보 보호책임자</h3>
+      <ul>
+        <li>성명: 박범진</li>
+        <li>연락처: presto9423@gmail.com</li>
+      </ul>
+
+      <h3>10. 고지 의무</h3>
+      <p>본 방침의 내용 추가·삭제·수정이 있을 경우 시행 7일 전부터 웹사이트를 통해 고지합니다.</p>
+      <ul>
+        <li>공고일: 2026-07-12</li>
+        <li>시행일: 2026-07-12</li>
+      </ul>
+
+    </div>
+  </div>
+  <footer><a href="./index.html">← 캘인더로 돌아가기</a></footer>
+</body>
+
+</html>

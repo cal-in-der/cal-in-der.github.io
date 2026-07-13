@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>캘인더 — 공연·행사 일정 한눈에</title>
+<style>
+  :root { --accent:#2E5AAC; --bg:#f7f8fb; --card:#fff; --line:#e5e8ef; --txt:#1c2333; --sub:#6b7385; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:var(--bg); color:var(--txt); }
+  header { background:var(--card); border-bottom:1px solid var(--line); padding:14px 20px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:22px; color:var(--accent); letter-spacing:-0.5px; }
+  header .tag { font-size:13px; color:var(--sub); }
+  header .auth { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .btn { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:7px 14px; cursor:pointer; font-size:14px; }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+  .userchip { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .userchip b { color:var(--accent); }
+  .wrap { max-width:1080px; margin:0 auto; padding:20px; }
+  /* 카테고리 칩 */
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .chip { padding:7px 16px; border:1px solid var(--line); border-radius:20px; background:var(--card);
+          font-size:14px; cursor:pointer; user-select:none; transition:all .12s; }
+  .chip:hover { border-color:var(--accent); }
+  .chip.on { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+  /* 캘린더 (상단) */
+  .calhead { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .calhead b { font-size:18px; }
+  .calhead button { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:14px; }
+  .caltable { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; table-layout:fixed; margin-bottom:26px; }
+  .caltable th { padding:8px 0; font-size:12px; color:var(--sub); border-bottom:1px solid var(--line); font-weight:600; }
+  .caltable th:first-child, .caltable td:first-child .dnum { color:#d05050; }
+  .caltable td { vertical-align:top; height:96px; border:1px solid var(--line); padding:4px; font-size:11px; }
+  .caltable .dnum { font-size:12px; color:var(--sub); margin-bottom:3px; }
+  .caltable td.today .dnum { color:#fff; background:var(--accent); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; }
+  .ev { display:block; background:#eef2fa; color:var(--accent); border-radius:4px; padding:1px 5px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none; }
+  .more { color:var(--sub); }
+  /* 하단 필터 + 목록 */
+  .filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .filters select, .filters input { padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px; background:var(--card); }
+  .filters input { flex:1; min-width:160px; }
+  .count { font-size:13px; color:var(--sub); margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; text-decoration:none; color:inherit; transition:box-shadow .15s; cursor:pointer; }
+  .card:hover { box-shadow:0 4px 14px rgba(30,50,100,.12); }
+  .poster { width:100%; aspect-ratio:3/4; object-fit:cover; background:#dfe4ee; }
+  .noposter { width:100%; aspect-ratio:3/4; background:linear-gradient(135deg,#dbe4f5,#eef1f8); display:flex; align-items:center; justify-content:center; color:#9aa6c0; font-size:13px; }
+  .card .body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:4px; }
+  .card .title { font-size:14px; font-weight:700; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .card .meta { font-size:12px; color:var(--sub); }
+  .badges { display:flex; gap:4px; flex-wrap:wrap; margin-top:2px; }
+  .badge { font-size:11px; padding:2px 7px; border-radius:20px; background:#eef2fa; color:var(--accent); }
+  .badge.state-공연중, .badge.state-진행중 { background:#e7f6ec; color:#1a7f3c; }
+  .badge.state-공연예정, .badge.state-진행예정 { background:#fff3e0; color:#b26a00; }
+  .badge.span-단일 { background:#f3e8fd; color:#7c3aed; }
+  .badge.span-기간 { background:#e8f4fd; color:#0369a1; }
+  /* 모달 공통 */
+  .modal-bg { position:fixed; inset:0; background:rgba(20,25,40,.55); display:none; align-items:flex-start; justify-content:center; z-index:50; padding:30px 16px; overflow-y:auto; }
+  .modal-bg.show { display:flex; }
+  .modal { background:var(--card); border-radius:14px; max-width:560px; width:100%; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,.25); }
+  .modal img { width:100%; max-height:340px; object-fit:cover; }
+  .modal .mbody { padding:18px 20px; }
+  .modal h3 { font-size:18px; margin-bottom:8px; }
+  .modal .row { font-size:13px; margin:6px 0; }
+  .modal .row b { color:var(--sub); font-weight:600; display:inline-block; min-width:56px; }
+  .modal .desc { font-size:13px; color:var(--sub); white-space:pre-line; margin-top:10px; max-height:170px; overflow-y:auto; border-top:1px solid var(--line); padding-top:10px; }
+  .modal .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .modal .actions a, .modal .actions button { flex:1; min-width:110px; text-align:center; padding:10px; border-radius:8px; font-size:14px; cursor:pointer; border:none; }
+  .modal .go { background:var(--accent); color:#fff; text-decoration:none; }
+  .modal .act { background:#eef2fa; color:var(--accent); font-weight:600; }
+  .modal .close { background:var(--bg); border:1px solid var(--line); }
+  /* 로그인·프로필 모달 */
+  .authmodal { max-width:380px; }
+  .authmodal .mbody { padding:24px; }
+  .authmodal h3 { margin-bottom:4px; }
+  .authmodal .sub { font-size:13px; color:var(--sub); margin-bottom:16px; }
+  .sbtn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; border-radius:8px; border:1px solid var(--line); background:#fff; font-size:15px; font-weight:600; cursor:pointer; margin-bottom:8px; }
+  .sbtn.google { background:#fff; }
+  .sbtn.kakao { background:#FEE500; border-color:#FEE500; color:#191919; }
+  .sbtn.naver { background:#03C75A; border-color:#03C75A; color:#fff; }
+  .sbtn:disabled { opacity:.45; cursor:not-allowed; }
+  .sbtn .soon { font-size:11px; font-weight:400; }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
+  .field input[type=date] { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
+  .gender-opts { display:flex; gap:8px; }
+  .gopt { flex:1; text-align:center; padding:10px 0; border:1px solid var(--line); border-radius:8px; cursor:pointer; font-size:14px; }
+  .gopt.on { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+  .consent { display:flex; align-items:flex-start; gap:8px; font-size:12px; color:var(--sub); margin:12px 0; line-height:1.5; }
+  .notice { background:#fff8e6; border:1px solid #f0dfa8; border-radius:8px; padding:10px 12px; font-size:12px; color:#8a6d1a; margin-bottom:12px; line-height:1.5; }
+  /* 캘린더 저장 선택 */
+  .savemenu { display:none; gap:8px; margin-top:8px; }
+  .savemenu.show { display:flex; }
+  .savemenu button, .savemenu a { flex:1; text-align:center; padding:9px; border-radius:8px; font-size:13px; border:1px solid var(--line); background:var(--bg); cursor:pointer; text-decoration:none; color:var(--txt); }
+  /* 토스트 */
+  #toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:#1c2333; color:#fff; padding:10px 18px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:99; }
+  #toast.show { opacity:.95; }
+  h2.sect { font-size:16px; margin-bottom:10px; }
+  footer { text-align:center; color:var(--sub); font-size:12px; padding:24px; }
+  .dot { display:none; }
+  @media (max-width:600px){
+    .caltable td{height:64px}
+    .ev{display:none}
+    .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:2px}
+    header .tag{display:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>캘인더</h1><span class="tag">모든 행사를 내 캘린더에</span>
+  <div class="auth" id="authArea"></div>
+</header>
+<div class="wrap">
+
+  <!-- ① 취향(카테고리) 선택 칩 -->
+  <div class="chips" id="chips"></div>
+
+  <!-- ② 상단 캘린더 -->
+  <div class="calhead">
+    <button id="calPrev">◀</button><b id="calTitle"></b><button id="calNext">▶</button>
+  </div>
+  <table class="caltable"><thead><tr>
+    <th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th>
+  </tr></thead><tbody id="calBody"></tbody></table>
+
+  <!-- ③ 하단 목록 -->
+  <h2 class="sect">공연 목록</h2>
+  <div class="filters">
+    <select id="fSpan">
+      <option value="">유형 전체</option>
+      <option value="단일">단일행사</option>
+      <option value="기간">기간행사</option>
+    </select>
+    <select id="fArea"><option value="">지역 전체</option></select>
+    <select id="fState"><option value="">상태 전체</option></select>
+    <input id="fQuery" type="search" placeholder="공연명·장소 검색">
+  </div>
+  <div class="count" id="count"></div>
+  <div id="listview" class="grid"></div>
+
+</div>
+
+<!-- 행사 상세 모달 -->
+<div class="modal-bg" id="modalBg"><div class="modal" id="modalBox"></div></div>
+
+<!-- 로그인 모달 -->
+<div class="modal-bg" id="loginBg"><div class="modal authmodal"><div class="mbody">
+  <h3>로그인</h3>
+  <p class="sub" id="loginSub">간편 로그인으로 시작하세요</p>
+  <div id="loginNotice"></div>
+  <button class="sbtn google" onclick="signIn('google')">G&nbsp; Google로 계속하기</button>
+  <button class="sbtn kakao" onclick="signIn('kakao')">💬 카카오로 계속하기</button>
+  <button class="sbtn naver" disabled title="준비 중입니다">N&nbsp; 네이버로 계속하기 <span class="soon">(준비중)</span></button>
+  <button class="btn" style="width:100%;margin-top:6px" onclick="closeLogin()">닫기</button>
+  <p style="font-size:11px;color:var(--sub);margin-top:10px;line-height:1.5">로그인 시 <a href="./privacy.html" target="_blank" rel="noopener" style="color:var(--accent)">개인정보처리방침</a>에 따라 이메일·닉네임이 수집됩니다.</p>
+</div></div></div>
+
+<!-- 프로필(성별·생년월일) 모달 -->
+<div class="modal-bg" id="profileBg"><div class="modal authmodal"><div class="mbody">
+  <h3>프로필 입력</h3>
+  <p class="sub">맞춤 행사 추천을 위해 성별·생년월일을 알려주세요</p>
+  <div class="field">
+    <label>성별</label>
+    <div class="gender-opts" id="genderOpts">
+      <div class="gopt" data-v="M" onclick="pickGender(this)">남성</div>
+      <div class="gopt" data-v="F" onclick="pickGender(this)">여성</div>
+      <div class="gopt" data-v="N" onclick="pickGender(this)">응답 안 함</div>
+    </div>
+  </div>
+  <div class="field">
+    <label>생년월일</label>
+    <input type="date" id="birthDate" min="1900-01-01">
+  </div>
+  <div class="consent">
+    <input type="checkbox" id="consentChk">
+    <span><label for="consentChk">(필수) 성별·생년월일 수집 및 이용에 동의합니다. 수집 목적: 맞춤 행사 추천·통계 분석 / 보유 기간: 회원 탈퇴 시까지</label>
+    <a href="./privacy.html" target="_blank" rel="noopener" style="color:var(--accent)">개인정보처리방침 보기</a></span>
+  </div>
+  <button class="btn primary" style="width:100%" onclick="saveProfile()">저장</button>
+  <button class="btn" style="width:100%;margin-top:6px" onclick="hide('profileBg')">나중에</button>
+</div></div></div>
+
+<div id="toast"></div>
+<footer>데이터 출처: (재)예술경영지원센터 KOPIS 공연예술통합전산망 · 한국관광공사<br>
+© 2026 캘인더 — 본 사이트의 데이터베이스는 저작권법의 보호를 받으며, 무단 복제·재배포·자동화 수집을 금합니다.<br>
+<a href="./terms.html" style="color:var(--sub)">이용약관</a> · <a href="./privacy.html" style="color:var(--sub)">개인정보처리방침</a></footer>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="events.js"></script>
+<script>
+const DATA = window.EVENTS_DATA || [];
+const $ = id => document.getElementById(id);
+function esc(t){ const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+function show(id){ $(id).classList.add('show'); }
+function hide(id){ $(id).classList.remove('show'); }
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove('show'), 2200); }
+
+// ============================================================
+// Supabase — 인증·로깅·저장
+// ============================================================
+const CFG = window.CALINDER_CONFIG || {};
+const sb = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+  : null;
+let currentUser = null;
+
+// 비로그인 식별자 (트래킹 병합용)
+function anonId(){
+  let v = localStorage.getItem('calinder_anon');
+  if (!v){ v = 'anon_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('calinder_anon', v); }
+  return v;
+}
+
+// ---- 로깅: event_click / click_out / share / calendar_save ----
+async function logAction(action, eventId, meta){
+  if (!sb) return; // 미설정 시 무동작
+  try {
+    await sb.from('activity_logs').insert({
+      user_id: currentUser ? currentUser.id : null,
+      anon_id: currentUser ? null : anonId(),
+      action, event_id: eventId || null, meta: meta || {}
+    });
+  } catch(e){ /* 로깅 실패는 무시 */ }
+}
+
+// ---- 로그인 ----
+function openLogin(msg){
+  $('loginNotice').innerHTML = '';
+  if (!sb) $('loginNotice').innerHTML = '<div class="notice">Supabase 미설정 상태입니다. config.js에 프로젝트 URL·anon key를 입력하면 로그인이 활성화됩니다. (05_운영/Supabase_설정_가이드.md)</div>';
+  else if (msg) $('loginNotice').innerHTML = '<div class="notice">' + esc(msg) + '</div>';
+  show('loginBg');
+}
+function closeLogin(){ hide('loginBg'); }
+async function signIn(provider){
+  if (!sb){ toast('Supabase 설정이 필요합니다'); return; }
+  const { error } = await sb.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: location.origin + location.pathname }
+  });
+  if (error) toast('로그인 실패: ' + error.message);
+}
+async function signOut(){
+  if (!sb) return;
+  await sb.auth.signOut();
+  currentUser = null;
+  renderAuth();
+  toast('로그아웃되었습니다');
+}
+
+function renderAuth(){
+  const el = $('authArea');
+  if (currentUser){
+    const name = currentUser.user_metadata && (currentUser.user_metadata.name || currentUser.user_metadata.full_name) || currentUser.email || '회원';
+    el.innerHTML = '<span class="userchip"><b>' + esc(name) + '</b>님</span>' +
+      '<button class="btn" onclick="signOut()">로그아웃</button>';
+  } else {
+    el.innerHTML = '<button class="btn primary" onclick="openLogin()">로그인</button>';
+  }
+}
+
+// ---- 프로필(성별·생년월일) ----
+let pickedGender = null;
+function pickGender(el){
+  pickedGender = el.dataset.v;
+  document.querySelectorAll('#genderOpts .gopt').forEach(g => g.classList.toggle('on', g === el));
+}
+async function checkProfile(){
+  if (!sb || !currentUser) return;
+  const { data } = await sb.from('profiles').select('gender,birth_date').eq('id', currentUser.id).maybeSingle();
+  if (data && (!data.gender || !data.birth_date)) show('profileBg');
+}
+async function saveProfile(){
+  if (!sb || !currentUser) return;
+  const bd = $('birthDate').value;
+  if (!pickedGender){ toast('성별을 선택해주세요'); return; }
+  if (!bd){ toast('생년월일을 입력해주세요'); return; }
+  if (!$('consentChk').checked){ toast('수집·이용 동의가 필요합니다'); return; }
+  const { error } = await sb.from('profiles')
+    .update({ gender: pickedGender, birth_date: bd, updated_at: new Date().toISOString() })
+    .eq('id', currentUser.id);
+  if (error){ toast('저장 실패: ' + error.message); return; }
+  await sb.from('user_consents').insert({ user_id: currentUser.id, consent_type: 'profile', granted: true });
+  hide('profileBg');
+  toast('프로필이 저장되었습니다');
+}
+
+// 세션 복원 + 로그인 상태 변화 감지
+if (sb){
+  sb.auth.onAuthStateChange((_ev, session) => {
+    currentUser = session ? session.user : null;
+    renderAuth();
+    if (currentUser) checkProfile();
+  });
+} else {
+  renderAuth();
+}
+
+// ============================================================
+// 공유 · 캘린더 저장 (로그인 필수)
+// ============================================================
+function requireLogin(what){
+  if (currentUser) return true;
+  openLogin(what + ' 기능은 로그인 후 이용할 수 있어요.');
+  return false;
+}
+
+// ---- 행사 공유: Web Share API → 실패 시 링크 복사 ----
+async function shareEvent(id){
+  if (!requireLogin('공유')) return;
+  const e = byId[id]; if (!e) return;
+  const url = location.origin + location.pathname + '?event=' + encodeURIComponent(id);
+  const text = e.title + ' (' + e.start + (e.end && e.end !== e.start ? '~' + e.end : '') + ', ' + (e.venue || '') + ')';
+  let method = 'copy';
+  if (navigator.share){
+    try { await navigator.share({ title: e.title, text, url }); method = 'webshare'; }
+    catch(err){ if (err.name === 'AbortError') return; }
+  }
+  if (method === 'copy'){
+    try { await navigator.clipboard.writeText(url); toast('링크가 복사되었습니다'); }
+    catch(err){ prompt('아래 링크를 복사하세요', url); }
+  }
+  logAction('share', id, { title: e.title, method, source: e.source });
+}
+
+// ---- 캘린더 저장: Google Calendar / ICS 파일 ----
+function toggleSaveMenu(){ $('saveMenu').classList.toggle('show'); }
+function ymd(s){ return (s || '').replaceAll('-',''); }
+function nextDay(s){ const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0,10); }
+
+async function saveToCalendar(id, method){
+  if (!requireLogin('캘린더 저장')) return;
+  const e = byId[id]; if (!e) return;
+  const end = e.end || e.start;
+  if (method === 'google'){
+    const u = new URL('https://calendar.google.com/calendar/render');
+    u.searchParams.set('action','TEMPLATE');
+    u.searchParams.set('text', e.title);
+    u.searchParams.set('dates', ymd(e.start) + '/' + ymd(nextDay(end)));  // 종일 일정: 종료일 +1
+    u.searchParams.set('location', e.venue || '');
+    u.searchParams.set('details', (e.url ? '상세: ' + e.url + '\n' : '') + '출처: 캘인더');
+    window.open(u.toString(), '_blank', 'noopener');
+  } else {
+    const ics = [
+      'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//calinder//KR','CALSCALE:GREGORIAN',
+      'BEGIN:VEVENT',
+      'UID:' + id + '@calinder',
+      'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z',
+      'DTSTART;VALUE=DATE:' + ymd(e.start),
+      'DTEND;VALUE=DATE:' + ymd(nextDay(end)),
+      'SUMMARY:' + e.title.replace(/([,;\\])/g,'\\$1'),
+      'LOCATION:' + (e.venue || '').replace(/([,;\\])/g,'\\$1'),
+      'DESCRIPTION:' + ((e.url || '') + ' 출처: 캘인더').replace(/([,;\\])/g,'\\$1'),
+      'END:VEVENT','END:VCALENDAR'
+    ].join('\r\n');
+    const blob = new Blob([ics], { type:'text/calendar;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'calinder_' + id + '.ics';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  // 내 캘린더 DB 기록 (스냅샷 포함)
+  if (sb){
+    await sb.from('user_calendar_items').upsert({
+      user_id: currentUser.id, event_id: id,
+      title: e.title, start_date: e.start, end_date: end, venue: e.venue || null
+    });
+  }
+  logAction('calendar_save', id, { title: e.title, method, source: e.source });
+  toast(method === 'google' ? 'Google 캘린더로 이동합니다' : '캘린더 파일(.ics)을 내려받았습니다');
+}
+
+// ============================================================
+// 이하 기존 렌더링 로직
+// ============================================================
+
+// ---- ① 카테고리(취향) 칩: 다중 선택 ----
+const GENRES = [...new Set(DATA.map(e => e.genre).filter(Boolean))].sort();
+const selected = new Set(); // 비어있으면 전체
+
+function renderChips(){
+  const chipsEl = $('chips');
+  chipsEl.innerHTML = '';
+  const all = document.createElement('span');
+  all.className = 'chip' + (selected.size === 0 ? ' on' : '');
+  all.textContent = '전체';
+  all.onclick = () => { selected.clear(); update(); };
+  chipsEl.appendChild(all);
+  GENRES.forEach(g => {
+    const c = document.createElement('span');
+    c.className = 'chip' + (selected.has(g) ? ' on' : '');
+    c.textContent = g;
+    c.onclick = () => { selected.has(g) ? selected.delete(g) : selected.add(g); update(); };
+    chipsEl.appendChild(c);
+  });
+}
+
+// ---- 필터 옵션 채우기 ----
+function fillOptions(id, key){
+  const vals = [...new Set(DATA.map(e => e[key]).filter(Boolean))].sort();
+  const sel = $(id);
+  vals.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+}
+fillOptions('fArea','area'); fillOptions('fState','state');
+
+function filtered(){
+  const a = $('fArea').value, s = $('fState').value, sp = $('fSpan').value,
+        q = $('fQuery').value.trim().toLowerCase();
+  return DATA.filter(e =>
+    (selected.size === 0 || selected.has(e.genre)) &&
+    (!a || e.area === a) && (!s || e.state === s) && (!sp || e.span === sp) &&
+    (!q || (e.title + ' ' + e.venue).toLowerCase().includes(q))
+  );
+}
+
+// ---- 상세 모달 ----
+const byId = {};
+DATA.forEach(e => byId[e.id] = e);
+function mrow(label, val){ return val ? `<div class="row"><b>${label}</b> ${esc(val)}</div>` : ''; }
+
+// 상세(summary·ext)는 events.js에서 분리해 event-details.json으로 뺐다.
+// 모달을 처음 열 때 한 번만 받아 캐시한다 — 목록만 보는 방문자는 내려받지 않는다.
+let DETAILS = null;
+let detailsReq = null;
+function loadDetails(){
+  if (DETAILS) return Promise.resolve(DETAILS);
+  if (!detailsReq) detailsReq = fetch('event-details.json')
+    .then(r => r.ok ? r.json() : {})
+    .catch(() => ({}))
+    .then(d => (DETAILS = d));
+  return detailsReq;
+}
+
+let openedId = null;
+function renderModal(e, d){
+  const x = d.ext || {};
+  const period = e.start + (e.end && e.end !== e.start ? ' ~ ' + e.end : '');
+  const menuOpen = $('saveMenu') && $('saveMenu').classList.contains('show');
+  $('modalBox').innerHTML = `
+    ${e.poster ? `<img src="${esc(e.poster)}" alt="">` : ''}
+    <div class="mbody">
+      <h3>${esc(e.title)}</h3>
+      <div class="badges">
+        ${e.genre ? `<span class="badge">${esc(e.genre)}</span>` : ''}
+        ${e.area ? `<span class="badge">${esc(e.area)}</span>` : ''}
+        ${e.span ? `<span class="badge span-${esc(e.span)}">${esc(e.span)}행사</span>` : ''}
+        ${e.state ? `<span class="badge state-${esc(e.state)}">${esc(e.state)}</span>` : ''}
+      </div>
+      ${mrow('기간', period)}
+      ${mrow('장소', e.venue)}
+      ${mrow('주소', e.address)}
+      ${mrow('요금', e.price)}
+      ${mrow('주최', x.organizer)}
+      ${mrow('주관', x.host)}
+      ${mrow('문의', x.tel)}
+      ${mrow('연령', x.age_limit)}
+      ${d.summary ? `<div class="desc">${esc(d.summary)}</div>` : ''}
+      ${x.program ? `<div class="desc"><b>프로그램</b>\n${esc(x.program)}</div>` : ''}
+      <div class="actions">
+        ${e.url ? `<a class="go" href="${esc(e.url)}" target="_blank" rel="noopener" onclick="logAction('click_out','${esc(e.id)}',{title:byId['${esc(e.id)}'].title})">원본 페이지</a>` : ''}
+        <button class="act" onclick="shareEvent('${esc(e.id)}')">공유</button>
+        <button class="act" onclick="toggleSaveMenu()">캘린더 저장</button>
+        <button class="close" onclick="closeModal()">닫기</button>
+      </div>
+      <div class="savemenu" id="saveMenu">
+        <button onclick="saveToCalendar('${esc(e.id)}','google')">Google 캘린더</button>
+        <button onclick="saveToCalendar('${esc(e.id)}','ics')">기기 캘린더(.ics)</button>
+      </div>
+    </div>`;
+  // 상세 도착 후 다시 그릴 때 열려 있던 저장 메뉴가 닫히지 않도록 복원
+  if (menuOpen) $('saveMenu').classList.add('show');
+}
+function openById(id, silent){
+  const e = byId[id]; if (!e) return;
+  openedId = id;
+  // 목록에 있는 필드로 먼저 그려 모달이 즉시 뜨게 하고, 상세는 도착하면 채운다.
+  renderModal(e, (DETAILS && DETAILS[id]) || {});
+  if (!DETAILS) loadDetails().then(all => {
+    if (openedId === id) renderModal(e, all[id] || {});
+  });
+  show('modalBg');
+  if (!silent) logAction('event_click', id, { title: e.title, source: e.source, genre: e.genre, area: e.area });
+}
+function closeModal(){ openedId = null; hide('modalBg'); }
+document.addEventListener('click', ev => {
+  if (ev.target.id === 'modalBg') closeModal();
+  if (ev.target.id === 'loginBg') closeLogin();
+  if (ev.target.id === 'profileBg') hide('profileBg');
+});
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape'){ closeModal(); closeLogin(); hide('profileBg'); } });
+
+// ---- ② 캘린더 ----
+let calY, calM; // M: 0-11
+const today = new Date(); today.setHours(0,0,0,0);
+calY = today.getFullYear(); calM = today.getMonth();
+
+function renderCal(){
+  const evs = filtered();
+  $('calTitle').textContent = `${calY}년 ${calM + 1}월`;
+  const first = new Date(calY, calM, 1), startDow = first.getDay();
+  const days = new Date(calY, calM + 1, 0).getDate();
+  let html = '<tr>', cellCount = 0;
+  for (let i = 0; i < startDow; i++){ html += '<td></td>'; cellCount++; }
+  for (let d = 1; d <= days; d++){
+    const cur = new Date(calY, calM, d);
+    const iso = `${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEvs = evs.filter(e => e.start <= iso && iso <= (e.end || e.start));
+    const isToday = cur.getTime() === today.getTime();
+    const shown = dayEvs.slice(0, 3);
+    html += `<td class="${isToday ? 'today' : ''}"><div class="dnum">${d}</div>` +
+      shown.map(e => `<a class="ev" href="javascript:void(0)" onclick="openById('${esc(e.id)}')" title="${esc(e.title)}">${esc(e.title)}</a><span class="dot"></span>`).join('') +
+      (dayEvs.length > 3 ? `<span class="more">+${dayEvs.length - 3}</span>` : '') + '</td>';
+    cellCount++;
+    if (cellCount % 7 === 0) html += '</tr><tr>';
+  }
+  while (cellCount % 7 !== 0){ html += '<td></td>'; cellCount++; }
+  $('calBody').innerHTML = html + '</tr>';
+}
+
+// ---- ③ 카드 목록 ----
+function renderList(){
+  const evs = filtered();
+  $('count').textContent = `총 ${evs.length}건`;
+  $('listview').innerHTML = evs.map(e => `
+    <div class="card" onclick="openById('${esc(e.id)}')">
+      ${e.poster ? `<img class="poster" loading="lazy" src="${esc(e.poster)}" alt="">`
+                 : `<div class="noposter">No Image</div>`}
+      <div class="body">
+        <div class="title">${esc(e.title)}</div>
+        <div class="meta">${e.start}${e.end && e.end !== e.start ? ' ~ ' + e.end : ''}</div>
+        <div class="meta">${esc(e.venue)}</div>
+        <div class="badges">
+          ${e.genre ? `<span class="badge">${esc(e.genre)}</span>` : ''}
+          ${e.area ? `<span class="badge">${esc(e.area)}</span>` : ''}
+          ${e.span ? `<span class="badge span-${esc(e.span)}">${esc(e.span)}행사</span>` : ''}
+          ${e.state ? `<span class="badge state-${esc(e.state)}">${esc(e.state)}</span>` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ---- 갱신 ----
+function update(){ renderChips(); renderCal(); renderList(); }
+$('calPrev').onclick = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
+$('calNext').onclick = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
+['fArea','fState','fSpan'].forEach(id => $(id).onchange = update);
+$('fQuery').oninput = update;
+update();
+
+// ---- 공유 딥링크: ?event=ID 로 진입 시 상세 모달 자동 오픈 ----
+(function(){
+  const id = new URLSearchParams(location.search).get('event');
+  if (id && byId[id]) openById(id, true);
+})();
+</script>
+</body>
+</html>

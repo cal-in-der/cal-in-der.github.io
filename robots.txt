@@ -1,0 +1,13 @@
+# 캘인더 robots.txt
+# 페이지 색인은 허용하되, raw 데이터 파일의 직접 수집·색인은 금지한다.
+# 데이터베이스 권리 고지: ./terms.html
+#
+# 주의: 표준상 robots.txt는 도메인 루트(/robots.txt)에서만 효력이 있다.
+# 프로젝트 페이지(<아이디>.github.io/calinder/)로 서빙되는 동안은 크롤러가 읽지 않으며,
+# 커스텀 도메인 연결 시(TODO.md 참조) 자동으로 유효해진다.
+
+User-agent: *
+Allow: /
+Disallow: /events.js
+Disallow: /event-details.json
+Disallow: /config.js

@@ -1,0 +1,3 @@
+# Actions가 Secrets로 생성 (로컬 개발용은 각자 생성)
+config.js
+.DS_Store
