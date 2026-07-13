@@ -30,7 +30,8 @@
   .caltable { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; table-layout:fixed; margin-bottom:26px; }
   .caltable th { padding:8px 0; font-size:12px; color:var(--sub); border-bottom:1px solid var(--line); font-weight:600; }
   .caltable th:first-child, .caltable td:first-child .dnum { color:#d05050; }
-  .caltable td { vertical-align:top; height:96px; border:1px solid var(--line); padding:4px; font-size:11px; }
+  .caltable td { vertical-align:top; height:96px; border:1px solid var(--line); padding:4px; font-size:11px; cursor:pointer; }
+  .caltable td.sel { background:#eef2fa; outline:2px solid var(--accent); outline-offset:-2px; }
   .caltable .dnum { font-size:12px; color:var(--sub); margin-bottom:3px; }
   .caltable td.today .dnum { color:#fff; background:var(--accent); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; }
   .ev { display:block; background:#eef2fa; color:var(--accent); border-radius:4px; padding:1px 5px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none; }
@@ -90,9 +91,13 @@
   .consent { display:flex; align-items:flex-start; gap:8px; font-size:12px; color:var(--sub); margin:12px 0; line-height:1.5; }
   .notice { background:#fff8e6; border:1px solid #f0dfa8; border-radius:8px; padding:10px 12px; font-size:12px; color:#8a6d1a; margin-bottom:12px; line-height:1.5; }
   /* 캘린더 저장 선택 */
-  .savemenu { display:none; gap:8px; margin-top:8px; }
+  .savemenu { display:none; flex-direction:column; gap:8px; margin-top:8px; }
   .savemenu.show { display:flex; }
-  .savemenu button, .savemenu a { flex:1; text-align:center; padding:9px; border-radius:8px; font-size:13px; border:1px solid var(--line); background:var(--bg); cursor:pointer; text-decoration:none; color:var(--txt); }
+  .savemenu .saverow { display:flex; gap:8px; }
+  .savemenu .saverow button, .savemenu .saverow a { flex:1; text-align:center; padding:9px; border-radius:8px; font-size:13px; border:1px solid var(--line); background:var(--bg); cursor:pointer; text-decoration:none; color:var(--txt); }
+  .timechips { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; color:var(--sub); }
+  .tchip { padding:4px 10px; border:1px solid var(--line); border-radius:14px; cursor:pointer; font-size:12px; background:var(--bg); user-select:none; }
+  .tchip.on { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
   /* 토스트 */
   #toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:#1c2333; color:#fff; padding:10px 18px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:99; }
   #toast.show { opacity:.95; }
@@ -114,6 +119,9 @@
 </header>
 <div class="wrap">
 
+  <!-- ⓪ 지역 선택 칩 (장·단명 혼재 데이터를 단명으로 정규화해 묶는다) -->
+  <div class="chips" id="regionChips"></div>
+
   <!-- ① 취향(카테고리) 선택 칩 -->
   <div class="chips" id="chips"></div>
 
@@ -133,7 +141,6 @@
       <option value="단일">단일행사</option>
       <option value="기간">기간행사</option>
     </select>
-    <select id="fArea"><option value="">지역 전체</option></select>
     <select id="fState"><option value="">상태 전체</option></select>
     <input id="fQuery" type="search" placeholder="공연명·장소 검색">
   </div>
@@ -351,15 +358,73 @@ function toggleSaveMenu(){ $('saveMenu').classList.toggle('show'); }
 function ymd(s){ return (s || '').replaceAll('-',''); }
 function nextDay(s){ const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0,10); }
 
+// ---- 회차(시간 블록) 파싱 ----
+// KOPIS schedule_text: "화요일 ~ 금요일(19:30), 토요일(15:00,18:00)" / "매일(11:00)" 등.
+// 파싱 불가한 자유 텍스트(visitkorea playtime 등)는 null → 종일 등록으로 폴백.
+function parseSchedule(text){
+  if (!text) return null;
+  const DOW = { '일':0, '월':1, '화':2, '수':3, '목':4, '금':5, '토':6 };
+  const map = {};
+  let matched = false;
+  const re = /(매일|([일월화수목금토])요일(?:\s*~\s*([일월화수목금토])요일)?)\s*\(([^)]*)\)/g;
+  let m;
+  while ((m = re.exec(text))){
+    const times = m[4].match(/\d{1,2}:\d{2}/g) || [];
+    if (!times.length) continue;
+    matched = true;
+    let dows;
+    if (m[1] === '매일') dows = [0,1,2,3,4,5,6];
+    else if (m[3]){ // 요일 범위 (금~월처럼 주를 넘는 범위도 순환 처리)
+      dows = [];
+      for (let i = DOW[m[2]]; ; i = (i + 1) % 7){ dows.push(i); if (i === DOW[m[3]]) break; }
+    } else dows = [DOW[m[2]]];
+    dows.forEach(d => { map[d] = [...new Set([...(map[d] || []), ...times])].sort(); });
+  }
+  return matched ? map : null;
+}
+function parseRuntime(text){ // "1시간 30분" → 90분. 실패 시 120분
+  const h = /(\d+)\s*시간/.exec(text || ''), mi = /(\d+)\s*분/.exec(text || '');
+  const t = (h ? +h[1] * 60 : 0) + (mi ? +mi[1] : 0);
+  return t > 0 ? t : 120;
+}
+// 선택일의 회차 목록 (선택일 없거나 파싱 불가면 [])
+function timesForSelDate(ext){
+  if (!selDate) return [];
+  const sched = parseSchedule(ext && ext.schedule_text);
+  return sched ? (sched[new Date(selDate + 'T00:00:00').getDay()] || []) : [];
+}
+// pickedTime: null=전체 기간 종일(날짜 미선택) / ''=선택일 종일 / 'HH:MM'=회차
+let pickedTime = null;
+function pickTime(el, t){
+  pickedTime = t;
+  document.querySelectorAll('#saveMenu .tchip').forEach(c => c.classList.toggle('on', c === el));
+}
+
 async function saveToCalendar(id, method){
   if (!requireLogin('캘린더 저장')) return;
   const e = byId[id]; if (!e) return;
   const end = e.end || e.start;
+  // 등록 범위 결정: 회차(선택일+시각) > 선택일 종일 > 전체 기간 종일
+  const timed = !!(selDate && pickedTime);
+  const dayStart = selDate || e.start, dayEnd = selDate || end;
+  let dtStart, dtEnd; // timed일 때 'YYYYMMDDTHHMMSS' (Asia/Seoul 로컬)
+  if (timed){
+    const st = new Date(selDate + 'T' + pickedTime + ':00');
+    const et = new Date(st.getTime() + parseRuntime((DETAILS && DETAILS[id] && DETAILS[id].ext || {}).runtime) * 60000);
+    const fmt = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') +
+                     'T' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + '00';
+    dtStart = fmt(st); dtEnd = fmt(et);
+  }
   if (method === 'google'){
     const u = new URL('https://calendar.google.com/calendar/render');
     u.searchParams.set('action','TEMPLATE');
     u.searchParams.set('text', e.title);
-    u.searchParams.set('dates', ymd(e.start) + '/' + ymd(nextDay(end)));  // 종일 일정: 종료일 +1
+    if (timed){
+      u.searchParams.set('dates', dtStart + '/' + dtEnd);
+      u.searchParams.set('ctz','Asia/Seoul');
+    } else {
+      u.searchParams.set('dates', ymd(dayStart) + '/' + ymd(nextDay(dayEnd)));  // 종일 일정: 종료일 +1
+    }
     u.searchParams.set('location', e.venue || '');
     u.searchParams.set('details', (e.url ? '상세: ' + e.url + '\n' : '') + '출처: 캘인더');
     window.open(u.toString(), '_blank', 'noopener');
@@ -369,8 +434,9 @@ async function saveToCalendar(id, method){
       'BEGIN:VEVENT',
       'UID:' + id + '@calinder',
       'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z',
-      'DTSTART;VALUE=DATE:' + ymd(e.start),
-      'DTEND;VALUE=DATE:' + ymd(nextDay(end)),
+      // timed는 기기 로컬 시간(floating) — 국내 행사 전제
+      (timed ? 'DTSTART:' + dtStart : 'DTSTART;VALUE=DATE:' + ymd(dayStart)),
+      (timed ? 'DTEND:' + dtEnd : 'DTEND;VALUE=DATE:' + ymd(nextDay(dayEnd))),
       'SUMMARY:' + e.title.replace(/([,;\\])/g,'\\$1'),
       'LOCATION:' + (e.venue || '').replace(/([,;\\])/g,'\\$1'),
       'DESCRIPTION:' + ((e.url || '') + ' 출처: 캘인더').replace(/([,;\\])/g,'\\$1'),
@@ -383,20 +449,51 @@ async function saveToCalendar(id, method){
     a.click();
     URL.revokeObjectURL(a.href);
   }
-  // 내 캘린더 DB 기록 (스냅샷 포함)
+  // 내 캘린더 DB 기록 (스냅샷 포함 — 날짜 선택 시 그 날짜로)
   if (sb){
     await sb.from('user_calendar_items').upsert({
       user_id: currentUser.id, event_id: id,
-      title: e.title, start_date: e.start, end_date: end, venue: e.venue || null
+      title: e.title, start_date: dayStart, end_date: dayEnd, venue: e.venue || null
     });
   }
-  logAction('calendar_save', id, { title: e.title, method, source: e.source });
+  logAction('calendar_save', id, { title: e.title, method, source: e.source, date: selDate || null, time: (timed ? pickedTime : null) });
   toast(method === 'google' ? 'Google 캘린더로 이동합니다' : '캘린더 파일(.ics)을 내려받았습니다');
 }
 
 // ============================================================
 // 이하 기존 렌더링 로직
 // ============================================================
+
+// ---- ⓪ 지역 칩: 단일 선택 ----
+// 소스별로 "서울특별시"/"서울" 이 섞여 있어 단명으로 정규화해 한 칩으로 묶는다.
+const AREA_SHORT = {
+  '서울특별시':'서울','부산광역시':'부산','대구광역시':'대구','인천광역시':'인천',
+  '광주광역시':'광주','대전광역시':'대전','울산광역시':'울산','세종특별자치시':'세종',
+  '경기도':'경기','강원특별자치도':'강원','충청북도':'충북','충청남도':'충남',
+  '전북특별자치도':'전북','전라남도':'전남','경상북도':'경북','경상남도':'경남',
+  '제주특별자치도':'제주'
+};
+const AREA_ORDER = ['서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주','기타'];
+function shortArea(a){ return AREA_SHORT[a] || a || '기타'; }
+const AREAS = AREA_ORDER.filter(a => DATA.some(e => shortArea(e.area) === a));
+let selArea = ''; // ''=전체
+
+function renderRegionChips(){
+  const el = $('regionChips');
+  el.innerHTML = '';
+  const all = document.createElement('span');
+  all.className = 'chip' + (selArea === '' ? ' on' : '');
+  all.textContent = '전국';
+  all.onclick = () => { selArea = ''; update(); };
+  el.appendChild(all);
+  AREAS.forEach(a => {
+    const c = document.createElement('span');
+    c.className = 'chip' + (selArea === a ? ' on' : '');
+    c.textContent = a;
+    c.onclick = () => { selArea = (selArea === a ? '' : a); update(); };
+    el.appendChild(c);
+  });
+}
 
 // ---- ① 카테고리(취향) 칩: 다중 선택 ----
 const GENRES = [...new Set(DATA.map(e => e.genre).filter(Boolean))].sort();
@@ -425,16 +522,23 @@ function fillOptions(id, key){
   const sel = $(id);
   vals.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
 }
-fillOptions('fArea','area'); fillOptions('fState','state');
+fillOptions('fState','state');
 
-function filtered(){
-  const a = $('fArea').value, s = $('fState').value, sp = $('fSpan').value,
+// 지역·카테고리·상태·유형·검색 필터. 캘린더는 이 결과를 그대로 쓰고,
+// 목록은 여기에 선택 날짜(selDate)를 얹는다 — 날짜를 골라도 캘린더가 비지 않게.
+function baseFiltered(){
+  const s = $('fState').value, sp = $('fSpan').value,
         q = $('fQuery').value.trim().toLowerCase();
   return DATA.filter(e =>
     (selected.size === 0 || selected.has(e.genre)) &&
-    (!a || e.area === a) && (!s || e.state === s) && (!sp || e.span === sp) &&
+    (!selArea || shortArea(e.area) === selArea) &&
+    (!s || e.state === s) && (!sp || e.span === sp) &&
     (!q || (e.title + ' ' + e.venue).toLowerCase().includes(q))
   );
+}
+function listFiltered(){
+  const evs = baseFiltered();
+  return selDate ? evs.filter(e => e.start <= selDate && selDate <= (e.end || e.start)) : evs;
 }
 
 // ---- 상세 모달 ----
@@ -460,6 +564,15 @@ function renderModal(e, d){
   const x = d.ext || {};
   const period = e.start + (e.end && e.end !== e.start ? ' ~ ' + e.end : '');
   const menuOpen = $('saveMenu') && $('saveMenu').classList.contains('show');
+  // 날짜 선택 상태면 그 날짜(+회차)로 등록하는 메뉴를 구성한다
+  const inRange = selDate && e.start <= selDate && selDate <= (e.end || e.start);
+  const times = inRange ? timesForSelDate(x) : [];
+  pickedTime = times.length ? times[0] : (inRange ? '' : null);
+  const timeRow = inRange ? `
+        <div class="timechips"><b>${koDate(selDate)}</b>
+          ${times.map((t, i) => `<span class="tchip${i === 0 ? ' on' : ''}" onclick="pickTime(this,'${t}')">${t}</span>`).join('')}
+          <span class="tchip${times.length ? '' : ' on'}" onclick="pickTime(this,'')">종일</span>
+        </div>` : '';
   $('modalBox').innerHTML = `
     ${e.poster ? `<img src="${esc(e.poster)}" alt="">` : ''}
     <div class="mbody">
@@ -486,9 +599,11 @@ function renderModal(e, d){
         <button class="act" onclick="toggleSaveMenu()">캘린더 저장</button>
         <button class="close" onclick="closeModal()">닫기</button>
       </div>
-      <div class="savemenu" id="saveMenu">
-        <button onclick="saveToCalendar('${esc(e.id)}','google')">Google 캘린더</button>
-        <button onclick="saveToCalendar('${esc(e.id)}','ics')">기기 캘린더(.ics)</button>
+      <div class="savemenu" id="saveMenu">${timeRow}
+        <div class="saverow">
+          <button onclick="saveToCalendar('${esc(e.id)}','google')">Google 캘린더</button>
+          <button onclick="saveToCalendar('${esc(e.id)}','ics')">기기 캘린더(.ics)</button>
+        </div>
       </div>
     </div>`;
   // 상세 도착 후 다시 그릴 때 열려 있던 저장 메뉴가 닫히지 않도록 복원
@@ -510,16 +625,25 @@ document.addEventListener('click', ev => {
   if (ev.target.id === 'modalBg') closeModal();
   if (ev.target.id === 'loginBg') closeLogin();
   if (ev.target.id === 'profileBg') hide('profileBg');
+  // 날짜 필터: 캘린더·목록·필터·모달 밖(빈 영역) 클릭 시 해제
+  if (selDate && !ev.target.closest('.caltable, .calhead, .card, .modal-bg, .filters, .chips, button, select, input, a')){
+    selDate = null; update();
+  }
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape'){ closeModal(); closeLogin(); hide('profileBg'); } });
 
 // ---- ② 캘린더 ----
 let calY, calM; // M: 0-11
+let selDate = null; // 선택한 날짜(ISO). 목록 필터 + 회차 등록 기준
 const today = new Date(); today.setHours(0,0,0,0);
 calY = today.getFullYear(); calM = today.getMonth();
 
+function pickDate(iso){
+  selDate = (selDate === iso ? null : iso); // 같은 날 재클릭 시 해제
+  update();
+}
 function renderCal(){
-  const evs = filtered();
+  const evs = baseFiltered();
   $('calTitle').textContent = `${calY}년 ${calM + 1}월`;
   const first = new Date(calY, calM, 1), startDow = first.getDay();
   const days = new Date(calY, calM + 1, 0).getDate();
@@ -531,8 +655,8 @@ function renderCal(){
     const dayEvs = evs.filter(e => e.start <= iso && iso <= (e.end || e.start));
     const isToday = cur.getTime() === today.getTime();
     const shown = dayEvs.slice(0, 3);
-    html += `<td class="${isToday ? 'today' : ''}"><div class="dnum">${d}</div>` +
-      shown.map(e => `<a class="ev" href="javascript:void(0)" onclick="openById('${esc(e.id)}')" title="${esc(e.title)}">${esc(e.title)}</a><span class="dot"></span>`).join('') +
+    html += `<td class="${isToday ? 'today' : ''}${selDate === iso ? ' sel' : ''}" onclick="pickDate('${iso}')"><div class="dnum">${d}</div>` +
+      shown.map(e => `<a class="ev" href="javascript:void(0)" onclick="event.stopPropagation();openById('${esc(e.id)}')" title="${esc(e.title)}">${esc(e.title)}</a><span class="dot"></span>`).join('') +
       (dayEvs.length > 3 ? `<span class="more">+${dayEvs.length - 3}</span>` : '') + '</td>';
     cellCount++;
     if (cellCount % 7 === 0) html += '</tr><tr>';
@@ -542,9 +666,19 @@ function renderCal(){
 }
 
 // ---- ③ 카드 목록 ----
+const DOW_KO = ['일','월','화','수','목','금','토'];
+function koDate(iso){
+  const d = new Date(iso + 'T00:00:00');
+  return `${d.getMonth() + 1}월 ${d.getDate()}일(${DOW_KO[d.getDay()]})`;
+}
 function renderList(){
-  const evs = filtered();
-  $('count').textContent = `총 ${evs.length}건`;
+  const evs = listFiltered();
+  if (selDate){
+    $('count').innerHTML = `<b>${koDate(selDate)}</b> 행사 · 총 ${evs.length}건 ` +
+      `<button class="btn" style="padding:2px 10px;font-size:12px" onclick="pickDate(selDate)">선택 해제</button>`;
+  } else {
+    $('count').textContent = `총 ${evs.length}건`;
+  }
   $('listview').innerHTML = evs.map(e => `
     <div class="card" onclick="openById('${esc(e.id)}')">
       ${e.poster ? `<img class="poster" loading="lazy" src="${esc(e.poster)}" alt="">`
@@ -564,10 +698,10 @@ function renderList(){
 }
 
 // ---- 갱신 ----
-function update(){ renderChips(); renderCal(); renderList(); }
+function update(){ renderRegionChips(); renderChips(); renderCal(); renderList(); }
 $('calPrev').onclick = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
 $('calNext').onclick = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
-['fArea','fState','fSpan'].forEach(id => $(id).onchange = update);
+['fState','fSpan'].forEach(id => $(id).onchange = update);
 $('fQuery').oninput = update;
 update();
 
